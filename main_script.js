@@ -3,7 +3,7 @@ function onOpen(e) {
   var ui = SpreadsheetApp.getUi();
 
   ui.createMenu('EduJuega')
-      .addItem('Formar Equipos', 'createFolders') //(caption, function name)
+      .addItem('Formar Equipos', 'mainProcess') //(caption, function name)
       .addItem('Eliminar Documentos', 'deleteFiles') //(caption, function name)
        
   .addSeparator()
@@ -12,44 +12,31 @@ function onOpen(e) {
   .addToUi();
 }
 
-
+function mainProcess() {
+    createFolders()
+    teamsMaker();
+    showPicker();
+}
 
 // CREATE FOLDER AND SUB-FOLDER
 function createFolders() {
   
-  // get current spreadsheet
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  
-  // get root folder id from 'config' sheet
-  
-  var file = DriveApp.getFileById(ss.getId());
-  var parentFolder = file.getParents();
-  
-    while (parentFolder.hasNext()){
-    var rootFolderId = parentFolder.next().getId();
-  
-    // create new Drive folder if it doesn't exist
-    var check = DriveApp.getFoldersByName("EduJuega");
-    var newFolder = check.hasNext() ? 
-    check.next() : DriveApp.getFolderById(rootFolderId).createFolder("EduJuega");
+    var ss = SpreadsheetApp.getActiveSpreadsheet();     // Get current spreadSheet
+    var currentFolder = getInmidiateParentFrom(ss.getId());
+    var eduJuegaFolder = createSubFolderFrom(currentFolder, "EduJuega");
+    createSubFolderFrom(eduJuegaFolder, "EquiposEdu");
+}
+
+function getInmidiateParentFrom(ssId) {
     
-    // get new Drive folder id for later use
-    var newFolderId = newFolder.getId();
-       
-    // create sub-folder if it doesn't exist **************
-    var checkSub = DriveApp.getFoldersByName("EquiposEdu");
-    var newSubFolder = checkSub.hasNext() ? 
-    checkSub.next() : newFolder.createFolder("EquiposEdu");
-    // end of create sub-folder ***************************
-      
-    // get new Drive sub-folder id for later use
-    var newSubFolderId = newSubFolder.getId();
-    }
-  
-  //prompt for Teams Maker 
-  var ui = SpreadsheetApp.getUi();
- 
-  teamsMaker();  
+    var file = DriveApp.getFileById(ssId);
+    var parentsIterator = file.getParents();
+    return parentsIterator.next();
+}
+
+function createSubFolderFrom(folder, newFolderName) {
+    var check = folder.getFoldersByName(newFolderName);
+    return check.hasNext() ? check.next() : folder.createFolder(newFolderName);
 }
 
 // PICKER
@@ -74,61 +61,59 @@ function testSpinner(){
 
 //TEAMS MAKER
 function teamsMaker(){
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("Plantilla");//get template sheet
-  var teamSize = sheet.getRange("E1").getValue();//team size
-  Logger.log('team size  '+teamSize);
-  var last = sheet.getLastRow();//end of roster size
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName("Plantilla");//get template sheet
+    var teamSize = sheet.getRange("E1").getValue();//team size
+    Logger.log('team size  '+teamSize);
+    var last = sheet.getLastRow();//end of roster size
+
+    //duplicate sheet with roster of first and last name
+    ss.setActiveSheet(sheet);
+    ss.duplicateActiveSheet();
+    ss.setActiveSheet(sheet);
+
+    var lastOne = last+1;
   
-  //duplicate sheet with roster of first and last name
-  ss.setActiveSheet(sheet);
-  ss.duplicateActiveSheet();
-  ss.setActiveSheet(sheet);
+    //combine first and last name
+    for(var i=4; i<lastOne; i++){
+        var lastName = sheet.getRange(i,1).getValue();
+        var firstName = sheet.getRange(i,2).getValue();
+        var firstLast = firstName+' '+lastName;
+
+        sheet.getRange(i,2).setValue(firstLast);
+    }
   
-  var lastOne = last+1;
+    sheet.deleteColumn(1);
+    sheet.getRange(3,1).setValue('Nombre');
+
+    //remove blank rows
+    Logger.log('Get last row: '+sheet.getLastRow());
+    Logger.log('Get Max Rows: '+sheet.getMaxRows());
+
+    var blankRows = sheet.getMaxRows() - lastOne;
+
+    sheet.deleteRows(lastOne, blankRows);
+    sheet.setName("Equipos");//Rename active sheet
+
+    var sheet = ss.getSheets()[1];//get second sheet
+    sheet.setName("Plantilla");//Rename second sheet
+
+    //hide template sheet
+    var sheet = ss.getSheetByName("Plantilla");
+    sheet.hideSheet();
   
-  //combine first and last name
-  for(var i=4; i<lastOne; i++){
-  var lastName = sheet.getRange(i,1).getValue();
-  var firstName = sheet.getRange(i,2).getValue();
-  var firstLast = firstName+' '+lastName;
-  
-  sheet.getRange(i,2).setValue(firstLast);
-  }
-  
-  sheet.deleteColumn(1);
-  sheet.getRange(3,1).setValue('Nombre');
-  
-  //remove blank rows
-  Logger.log('Get last row: '+sheet.getLastRow());
-  Logger.log('Get Max Rows: '+sheet.getMaxRows());
-  
-  var blankRows = sheet.getMaxRows() - lastOne;
-  
-  sheet.deleteRows(lastOne, blankRows);
-  sheet.setName("Equipos");//Rename active sheet
-  
-  var sheet = ss.getSheets()[1];//get second sheet
-  sheet.setName("Plantilla");//Rename second sheet
-  
-  //hide template sheet
-  var sheet = ss.getSheetByName("Plantilla");
-  sheet.hideSheet();
-  
-  //share current spreadsheet
-  var data = sheet.getDataRange().getValues();   
-  var last = sheet.getLastRow();//end of roster size
-  var lastOne = last+1;
+    //share current spreadsheet
+    var data = sheet.getDataRange().getValues();   
+    var last = sheet.getLastRow();//end of roster size
+    var lastOne = last+1;
 
     for(var i=4; i<lastOne; i++){
-    var sEmail = sheet.getRange(i,3).getValue();
-    ss.addViewer(sEmail);
-}
+        var sEmail = sheet.getRange(i,3).getValue();
+        ss.addViewer(sEmail);
+    }
   
   //prompt for picker 
   var ui = SpreadsheetApp.getUi();
- 
-  showPicker();
 }
 
 //CALL THE DOCUMENT TO BE COPIED
